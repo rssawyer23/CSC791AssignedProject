@@ -78,7 +78,7 @@ def output_policy(distinct_acts, distinct_states, vi):
     print('Policy: ')
     print('state -> action, value-function')
     for s in range(Ns):
-        print(distinct_states[s] + " -> " + distinct_acts[vi.policy[s]] + ", " + str(vi.V[s]))
+        print str(distinct_states[s]) + " -> " + str(distinct_acts[vi.policy[s]]) + ", " + str(vi.V[s])
 
 
 def induce_policy_MDP2(original_data, selected_features):
@@ -94,14 +94,51 @@ def induce_policy_MDP2(original_data, selected_features):
 
     # evaluate policy using ECR
     ECR_value = calcuate_ECR(start_states, vi.V)
-    print('ECR value: ' + str(ECR_value))
+    print 'ECR value: %.5f' % ECR_value
     return ECR_value
+
+
+# Function implemented by Rob for discretizing a column
+# data_series is continuous valued column to be discretized
+# bins is the number of "levels" for discretization (default 2 = binary)
+def discretize_column(data_series, bins=2):
+    sorted_series = data_series.order(ascending=True, inplace=False)
+    return_series = pandas.Series([0]*data_series.shape[0], dtype=int)
+    for i in range(1, bins):
+        split = sorted_series.iloc[sorted_series.shape[0]*i/bins]
+        above_split = pandas.Series(data_series > split, dtype=int)
+        return_series += np.array(above_split)
+    return return_series
+
+
+# A function for to be implemented
+def basic_feature_selection(data_frame):
+    feature_list = ["Level", "probDiff"]
+    return feature_list, data_frame
+
+
+# Function for testing feature selection methods
+def testing_feature_selection(data_frame):
+    full_list = list(data_frame.columns.values)
+    test_feature = pandas.Series([0]*data_frame.shape[0],dtype=int)
+    test_feature[data_frame["reward"] < 0] = 1
+    data_frame["TEST_FEATURE"] = test_feature
+    test_feature2 = discretize_column(data_frame["Interaction"],bins=3)
+    data_frame["TEST_FEATURE2"] = test_feature2
+    feature_list = ['Level', 'probDiff', "TEST_FEATURE", "TEST_FEATURE2"]
+    return feature_list, data_frame
+
+
+# Function for doing feature selection by PCA
+def PCA_feature_selection(data_frame, vectors_used=8):
+    feature_list = []
+    return feature_list, None
 
 
 if __name__ == "__main__":
 
-    original_data = pandas.read_csv('MDP_training_data.csv')
+    original_data = pandas.read_csv('MDP_Original_data2.csv')
 
-    selected_features = ['Level', 'probDiff']
+    selected_features, expanded_data = testing_feature_selection(original_data)
 
-    ECR_value = induce_policy_MDP2(original_data, selected_features)
+    ECR_value = induce_policy_MDP2(expanded_data, selected_features)

@@ -1,0 +1,17 @@
+1. Principal Component Analysis
+    i.  Do a full PCA on all numeric values
+        take top 8 eigenvectors
+        use to create features
+        discretize features
+        run 1 through 8 to find best ECR
+    ii. Do PCA on each type of feature (from Feature_Table)
+        For each type: run PCA on type, select top eigenvector, make features from each type
+
+2. Clustering
+    i. Basic: Use K-Means on data points to create variable for cluster number
+    ii. Extra: Use several different numbers of clusters for multiple variables
+    iii. Use several different clustering methods (K-Means, [discretized] GMM, DBSCAN, Hierarchical) for multiple features
+    iv. Could also cluster from each type for feature per type
+
+3. Combination
+    i. Use clustering for some variables and PCA for other variables
