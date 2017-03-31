@@ -148,7 +148,6 @@ def testing_feature_selection(data_frame):
     return feature_list, data_frame
 
 
-
 # Function for performing feature selection via Principal Component Analysis (dimensionality reduction)
 # vectors_used is number of component vectors (resulting features) to use
 # bins is the number of levels to discretize each resulting feature vector into
@@ -169,11 +168,36 @@ def PCA_feature_selection(data_frame, vectors_used=8, bins=2, uniform=True):
     return feature_list, result_data
 
 
+# Replicating their "initialization" of selecting best feature
+# Runs incredibly slowly since solves MDP for each feature
+def identify_best_feature(data_frame, bins=2):
+    best_ECR = 0
+    best_feature = ""
+    offset = 6
+    for feature, i in zip(list(data_frame.iloc[:,offset:].columns.values),range(data_frame.shape[1]-offset)):
+        if i%50 == 0:
+            print "Bins:%d Feature:%d" % (bins, i)
+        data_frame["single_feature"] = discretize_column(data_frame[feature], bins=bins)
+        try:
+            ECR_value = induce_policy_MDP2(data_frame,["single_feature"])
+        except OverflowError:
+            print "Overflow %s" % feature
+            print "Bins:%d Feature:%d" % (bins, i)
+        if ECR_value > best_ECR:
+            best_ECR = ECR_value
+            best_feature = feature
+    return best_feature, best_ECR
 
 if __name__ == "__main__":
 
     original_data = pandas.read_csv('MDP_Original_data2.csv')
 
-    selected_features, expanded_data = PCA_feature_selection(original_data, vectors_used=8, bins=4, uniform=False)
+    #selected_features, expanded_data = PCA_feature_selection(original_data, vectors_used=8, bins=4, uniform=False)
 
-    ECR_value = induce_policy_MDP2(expanded_data, selected_features)
+    #ECR_value = induce_policy_MDP2(expanded_data, selected_features)
+
+
+    # Below code takes forever to run
+    # for i in range(2, 9):
+    #     print "Discretization Levels:%d" % i
+    #     print identify_best_feature(original_data, bins=i)
