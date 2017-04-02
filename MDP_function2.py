@@ -96,10 +96,10 @@ def calcuate_ECR(start_states, expectV):
 
 def output_policy(distinct_acts, distinct_states, vi):
     Ns = len(distinct_states)
-    print('Policy: ')
-    print('state -> action, value-function')
-    for s in range(Ns):
-        print(distinct_states[s] + " -> " + distinct_acts[vi.policy[s]] + ", " + str(vi.V[s]))
+    # print('Policy: ')
+    # print('state -> action, value-function')
+    # for s in range(Ns):
+    #     print(distinct_states[s] + " -> " + distinct_acts[vi.policy[s]] + ", " + str(vi.V[s]))
 
 def induce_policy_MDP2(original_data, selected_features):
 
@@ -114,7 +114,7 @@ def induce_policy_MDP2(original_data, selected_features):
 
     # evaluate policy using ECR
     ECR_value = calcuate_ECR(start_states, vi.V)
-    print('ECR value: ' + str(ECR_value))
+    #print('ECR value: ' + str(ECR_value))
     return ECR_value
 
 
@@ -133,8 +133,8 @@ def discretize_column(data_series, bins=2):
 
 # A function for to be implemented
 def basic_feature_selection(data_frame, bins=2):
-    feature_list = ["CurrPro_avgProbTimeWE"]
-    data_frame["CurrPro_avgProbTimeWE"] = discretize_column(data_frame["CurrPro_avgProbTimeWE"], bins)
+    feature_list = ["New_CurrPro_avgProbTimeWE"]
+    data_frame["New_CurrPro_avgProbTimeWE"] = discretize_column(data_frame["CurrPro_avgProbTimeWE"], bins)
     return feature_list, data_frame
 
 
@@ -172,25 +172,31 @@ def PCA_feature_selection(data_frame, vectors_used=8, bins=2, uniform=True):
 
 # Replicating their "initialization" of selecting best feature
 # Runs incredibly slowly since solves MDP for each feature
-def identify_best_feature(data_frame, initial_features, bins=2, uniform=False):
-    feature_list = list(data_frame.columns.values)
+def identify_best_feature(data_frame, initial_features, prev_bins, bins=2, uniform=False):
+    if len(initial_features) > 1:
+        feature_list = [e for e in list(data_frame.iloc[:, 5:].columns.values) not in initial_features]
+    else:
+        feature_list = list(data_frame.iloc[:, 5:].columns.values)
     end_dict = dict()
     for f in feature_list:
         end_dict[f] = []
     best_ECR = 0
     best_feature = ""
     best_bins = ""
-    offset = 6
-    for b in range(bins):
-        for feature, i in zip(list(data_frame.iloc[:,offset:].columns.values),range(data_frame.shape[1]-offset)):
-            if i%50 == 0:
-                print "Bins:%d Feature:%d" % (bins, i)
+    if not uniform:
+        try:
+            max_bins = max(prev_bins)
+        except ValueError:
+            max_bins = bins
+    else:
+        max_bins = bins
+    for b in range(2,2+max_bins):
+        for feature in feature_list:
             data_frame["single_feature"] = discretize_column(data_frame[feature], bins=b)
+
             for f, bin_i in zip(initial_features, range(len(initial_features))):
-                if not uniform:
-                    data_frame[f] = discretize_column(data_frame[f],bins=bins)
-                else:
-                    data_frame[f] = discretize_column(data_frame[f],bins=bins+(len(initial_features)-bin_i))
+                data_frame[f] = discretize_column(data_frame[f],bins=prev_bins[i])
+
             ECR_value = induce_policy_MDP2(data_frame, initial_features+["single_feature"])
             end_dict[feature].append(ECR_value)
             # try:
@@ -202,7 +208,18 @@ def identify_best_feature(data_frame, initial_features, bins=2, uniform=False):
                 best_ECR = ECR_value
                 best_feature = feature
                 best_bins = b
+                #print "ECR:%.5f, Feature:%s, bins:%d" % (best_ECR, best_feature, best_bins)
+
     return best_feature, best_ECR, best_bins, end_dict
+
+
+def final_feature_selection(data, features, bins):
+    new_features = []
+    for f,b in zip(features,bins):
+        data["New-%s"%f] = discretize_column(data[f],bins=b)
+        new_features.append("New-%s"%f)
+    return new_features, data
+
 
 if __name__ == "__main__":
 
@@ -212,14 +229,43 @@ if __name__ == "__main__":
     #
     # ECR_value = induce_policy_MDP2(expanded_data, selected_features)
 
-    for i in range(2,11):
-        selected_features, expanded_data = basic_feature_selection(original_data, bins=i)
-        ECR_value = induce_policy_MDP2(expanded_data, selected_features)
+    # Below section for testing a specific feature across many bins
+    # for i in range(10, 20):
+    #     selected_features, expanded_data = basic_feature_selection(original_data, bins=i)
+    #     ECR_value = induce_policy_MDP2(expanded_data, selected_features)
 
-    # #Below code takes forever to run
-    # for i in range(2, 9):
+    # #Below section takes forever to run
+    # for i in range(2, 11):
     #     print "Discretization Levels:%d" % i
     #     initial_features = []
-    #     feature, ecr, bins, dictionary = identify_best_feature(original_data, initial_features, bins=i)
+    #     feature, ecr, bins, dictionary = identify_best_feature(original_data, initial_features, bins=i, uniform=False)
     #     print "Best Feature:%s for level:%d at ECR:%.5f with bins:%d" % (feature, i, ecr, bins)
     #     pandas.DataFrame(dictionary).to_csv("MDP_BEST_FEATURE_OUTPUT.csv", index=False)
+
+    #Below section should be final code to run for gaming the system method of feature selection
+    initial_features = []
+    previous_bins = []
+    set_max_bins = True
+    max_bins = 10
+    output_file = open("MDP_Final_Output_%d.csv" % set_max_bins, mode='a')
+    output_file.write("Feature,Bins,ECR\n")
+    for i in range(1, 9):
+        print "-------------------------------ITERATION %d--------------------" % i
+        feature, ecr, bins, dictionary = identify_best_feature(original_data, initial_features, previous_bins, bins=max_bins, uniform=set_max_bins)
+        print "Best Previous %d Features: %s" % (i-1, initial_features)
+        print "Best New %d Feature:%s at ECR:%.5f with bins:%d" % (i, feature, ecr, bins)
+        output_file.write("%s,%s,%.5f" % (feature, bins, ecr))
+        initial_features.append(feature)
+        previous_bins.append(bins)
+        try:
+            pandas.DataFrame(dictionary).to_csv("MDP_BEST_FEATURE_OUTPUT_%d_%d.csv" % (set_max_bins, i), index=False)
+        except ValueError:
+            print "Value Error"
+
+    output_file.close()
+    #Uses results from greedy search method to output final ECR
+    print initial_features
+    print previous_bins
+    selected_features, expanded_data = final_feature_selection(original_data, initial_features, previous_bins)
+    ECR_Final = induce_policy_MDP2(expanded_data, selected_features)
+    print ECR_Final
