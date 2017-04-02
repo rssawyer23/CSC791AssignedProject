@@ -195,7 +195,7 @@ def identify_best_feature(data_frame, initial_features, prev_bins, bins=2, unifo
             data_frame["single_feature"] = discretize_column(data_frame[feature], bins=b)
 
             for f, bin_i in zip(initial_features, range(len(initial_features))):
-                data_frame[f] = discretize_column(data_frame[f],bins=prev_bins[i])
+                data_frame[f] = discretize_column(data_frame[f], bins=prev_bins[bin_i])
 
             ECR_value = induce_policy_MDP2(data_frame, initial_features+["single_feature"])
             end_dict[feature].append(ECR_value)
@@ -243,13 +243,13 @@ if __name__ == "__main__":
     #     pandas.DataFrame(dictionary).to_csv("MDP_BEST_FEATURE_OUTPUT.csv", index=False)
 
     #Below section should be final code to run for gaming the system method of feature selection
-    initial_features = []
-    previous_bins = []
-    set_max_bins = True
+    initial_features = ['CurrPro_avgProbTimeWE']
+    previous_bins = [5]
+    set_max_bins = False
     max_bins = 10
     output_file = open("MDP_Final_Output_%d.csv" % set_max_bins, mode='a')
     output_file.write("Feature,Bins,ECR\n")
-    for i in range(1, 9):
+    for i in range(2, 9):
         print "-------------------------------ITERATION %d--------------------" % i
         feature, ecr, bins, dictionary = identify_best_feature(original_data, initial_features, previous_bins, bins=max_bins, uniform=set_max_bins)
         print "Best Previous %d Features: %s" % (i-1, initial_features)
