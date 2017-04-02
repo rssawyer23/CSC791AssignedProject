@@ -254,7 +254,7 @@ if __name__ == "__main__":
         feature, ecr, bins, dictionary = identify_best_feature(original_data, initial_features, previous_bins, bins=max_bins, uniform=set_max_bins)
         print "Best Previous %d Features: %s" % (i-1, initial_features)
         print "Best New %d Feature:%s at ECR:%.5f with bins:%d" % (i, feature, ecr, bins)
-        output_file.write("%s,%s,%.5f" % (feature, bins, ecr))
+        output_file.write("%s,%s,%.5f\n" % (feature, bins, ecr))
         initial_features.append(feature)
         previous_bins.append(bins)
         try:
