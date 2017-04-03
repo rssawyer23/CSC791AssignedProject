@@ -5,6 +5,7 @@ import mdptoolbox, mdptoolbox.example
 import argparse
 import sklearn.decomposition
 from scipy import stats
+from sklearn.cluster import KMeans
 
 
 def generate_MDP_input2(original_data, features):
@@ -131,10 +132,16 @@ def discretize_column(data_series, bins=2):
     return return_series
 
 
+def discretize_column_clustering(data_series,clusters=2):
+    kmeans = KMeans(n_clusters=clusters).fit(np.array(data_series).reshape(-1,1))
+    return_series = kmeans.predict(np.array(data_series).reshape(-1,1))
+    return return_series
+
+
 # A function for to be implemented
 def basic_feature_selection(data_frame, bins=2):
     feature_list = ["New_CurrPro_avgProbTimeWE"]
-    data_frame["New_CurrPro_avgProbTimeWE"] = discretize_column(data_frame["CurrPro_avgProbTimeWE"], bins)
+    data_frame["New_CurrPro_avgProbTimeWE"] = discretize_column_clustering(data_frame["CurrPro_avgProbTimeWE"], bins)
     return feature_list, data_frame
 
 
@@ -173,8 +180,13 @@ def PCA_feature_selection(data_frame, vectors_used=8, bins=2, uniform=True):
 # Replicating their "initialization" of selecting best feature
 # Runs incredibly slowly since solves MDP for each feature
 def identify_best_feature(data_frame, initial_features, prev_bins, bins=2, uniform=False):
+    print list(data_frame.iloc[:,5:].columns.values)
     if len(initial_features) > 1:
-        feature_list = [e for e in list(data_frame.iloc[:, 5:].columns.values) not in initial_features]
+        feature_list = []
+        for e in list(data_frame.iloc[:,5:].columns.values):
+            if e not in initial_features:
+                feature_list.append(e)
+        #feature_list = [e for e in list(data_frame.iloc[:, 5:].columns.values) not in initial_features]
     else:
         feature_list = list(data_frame.iloc[:, 5:].columns.values)
     end_dict = dict()
@@ -185,7 +197,7 @@ def identify_best_feature(data_frame, initial_features, prev_bins, bins=2, unifo
     best_bins = ""
     if not uniform:
         try:
-            max_bins = max(prev_bins)
+            max_bins = max(prev_bins) - 2
         except ValueError:
             max_bins = bins
     else:
@@ -230,9 +242,10 @@ if __name__ == "__main__":
     # ECR_value = induce_policy_MDP2(expanded_data, selected_features)
 
     # Below section for testing a specific feature across many bins
-    # for i in range(10, 20):
+    # for i in range(2, 20):
     #     selected_features, expanded_data = basic_feature_selection(original_data, bins=i)
     #     ECR_value = induce_policy_MDP2(expanded_data, selected_features)
+    #     print "Clusters:%d ECR:%.5f" % (i, ECR_value)
 
     # #Below section takes forever to run
     # for i in range(2, 11):
@@ -243,13 +256,13 @@ if __name__ == "__main__":
     #     pandas.DataFrame(dictionary).to_csv("MDP_BEST_FEATURE_OUTPUT.csv", index=False)
 
     #Below section should be final code to run for gaming the system method of feature selection
-    initial_features = ['CurrPro_avgProbTimeWE']
-    previous_bins = [5]
+    initial_features = ['CurrPro_avgProbTimeWE','NextStepClickCountWE']
+    previous_bins = [5,6]
     set_max_bins = False
     max_bins = 10
     output_file = open("MDP_Final_Output_%d.csv" % set_max_bins, mode='a')
     output_file.write("Feature,Bins,ECR\n")
-    for i in range(2, 9):
+    for i in range(3, 9):
         print "-------------------------------ITERATION %d--------------------" % i
         feature, ecr, bins, dictionary = identify_best_feature(original_data, initial_features, previous_bins, bins=max_bins, uniform=set_max_bins)
         print "Best Previous %d Features: %s" % (i-1, initial_features)
