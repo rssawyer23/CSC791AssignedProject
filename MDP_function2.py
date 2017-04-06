@@ -6,6 +6,7 @@ import argparse
 import sklearn.decomposition
 from scipy import stats
 from sklearn.cluster import KMeans
+from sklearn import preprocessing
 
 
 def generate_MDP_input2(original_data, features):
@@ -99,10 +100,10 @@ def calcuate_ECR(start_states, expectV):
 
 def output_policy(distinct_acts, distinct_states, vi):
     Ns = len(distinct_states)
-    # print('Policy: ')
-    # print('state -> action, value-function')
-    # for s in range(Ns):
-    #     print(distinct_states[s] + " -> " + distinct_acts[vi.policy[s]] + ", " + str(vi.V[s]))
+    print('Policy: ')
+    print('state -> action, value-function')
+    for s in range(Ns):
+        print(distinct_states[s] + " -> " + distinct_acts[vi.policy[s]] + ", " + str(vi.V[s]))
 
 def induce_policy_MDP2(original_data, selected_features):
 
@@ -118,7 +119,7 @@ def induce_policy_MDP2(original_data, selected_features):
 
     # evaluate policy using ECR
     ECR_value = calcuate_ECR(start_states, vi.V)
-    #print('ECR value: ' + str(ECR_value))
+    print('ECR value: ' + str(ECR_value))
     return ECR_value
 
 
@@ -143,7 +144,6 @@ def calculate_confidence_interval(original_data, selected_features, samples=1000
     [start_states, A, expectR, distinct_acts, distinct_states, Counts] = generate_MDP_input2(original_data, selected_features)
 
     # apply Value Iteration to run the MDP
-# Can input a sampling A statement here, wrap over this, including ECR value
 
     # A = Sample from Counts as Dirichlet, make this first line of loop, keep list of ECR values
     ECR_values = []
@@ -157,7 +157,7 @@ def calculate_confidence_interval(original_data, selected_features, samples=1000
         ECR_values.append(ECR_value)
     return np.mean(ECR_values), np.std(ECR_values)
 
-# Function implemented by Rob for discretizing a column
+# Function for discretizing a column
 # data_series is continuous valued column to be discretized
 # bins is the number of "levels" for discretization (default 2 = binary)
 def discretize_column(data_series, bins=2):
@@ -169,14 +169,14 @@ def discretize_column(data_series, bins=2):
         return_series += np.array(above_split)
     return return_series
 
-
+# Function for discretizing a column using k-means clustering
 def discretize_column_clustering(data_series,clusters=2):
     kmeans = KMeans(n_clusters=clusters).fit(np.array(data_series).reshape(-1,1))
     return_series = kmeans.predict(np.array(data_series).reshape(-1,1))
     return return_series
 
 
-# A function for to be implemented
+
 def basic_feature_selection(data_frame, bins=2):
     feature_list = ["New_CurrPro_avgProbTimeWE"]
     data_frame["New_CurrPro_avgProbTimeWE"] = discretize_column_clustering(data_frame["CurrPro_avgProbTimeWE"], bins)
@@ -201,7 +201,7 @@ def testing_feature_selection(data_frame):
 # uniform controls whether each feature vector has the same amount of levels or whether level amount should decrease (less important vectors later)
 def PCA_feature_selection(data_frame, vectors_used=8, bins=2, uniform=True, discrete="percentiles"):
     pca = sklearn.decomposition.PCA(n_components=vectors_used)
-    transformed_data = pca.fit_transform(data_frame.iloc[:, 5:])
+    transformed_data = pca.fit_transform(preprocessing.scale(data_frame.iloc[:, 5:]))
     feature_list = ["New-Feature-%d" % i for i in range(vectors_used)]
     extra_data = pandas.DataFrame(transformed_data, columns=feature_list)
     result_data = pandas.concat([data_frame, extra_data], axis=1)
@@ -221,8 +221,7 @@ def PCA_feature_selection(data_frame, vectors_used=8, bins=2, uniform=True, disc
     return feature_list, result_data
 
 
-# Replicating their "initialization" of selecting best feature
-# Runs incredibly slowly since solves MDP for each feature
+# Inner loop of greedy search
 def identify_best_feature(data_frame, initial_features, prev_bins, bins=2, uniform=False):
     if len(initial_features) > 1:
         feature_list = []
@@ -278,28 +277,14 @@ def final_feature_selection(data, features, bins):
 
 if __name__ == "__main__":
 
-    original_data = pandas.read_csv('extractedfeatures2.csv')
+    original_data = pandas.read_csv('MDP_Original_data2.csv')
+    final_feature_set = ['CurrPro_avgProbTimeWE', 'NextStepClickCountWE', 'cumul_TotalWETime', 'ruleScoreCD', 'ruleScoreADD', 'ruleScoreASSOC', 'difficultProblemCountWE', 'easyProblemCountWE']
+    final_disc_levels = [5, 6, 5, 5, 2, 2, 2, 4]
+    selected_features, expanded_data = final_feature_selection(original_data, final_feature_set, final_disc_levels)
+    ECR_value = induce_policy_MDP2(expanded_data, selected_features)
 
-    # selected_features, expanded_data = PCA_feature_selection(original_data, vectors_used=2, bins=4, uniform=False, discrete="clusters")
-    #
-    # ECR_value = induce_policy_MDP2(expanded_data, selected_features)
-    # print "ECR:%.5f" % ECR_value
-
-    # Below section for testing a specific feature across many bins
-    # for i in range(2, 20):
-    #     selected_features, expanded_data = basic_feature_selection(original_data, bins=i)
-    #     ECR_value = induce_policy_MDP2(expanded_data, selected_features)
-    #     print "Clusters:%d ECR:%.5f" % (i, ECR_value)
-
-    # #Below section takes forever to run
-    # for i in range(2, 11):
-    #     print "Discretization Levels:%d" % i
-    #     initial_features = []
-    #     feature, ecr, bins, dictionary = identify_best_feature(original_data, initial_features, bins=i, uniform=False)
-    #     print "Best Feature:%s for level:%d at ECR:%.5f with bins:%d" % (feature, i, ecr, bins)
-    #     pandas.DataFrame(dictionary).to_csv("MDP_BEST_FEATURE_OUTPUT.csv", index=False)
-
-    #Below section should be final code to run for gaming the system method of feature selection
+##############################################################################################################################
+    #Below section should be final code to run for method of feature selection
     # initial_features = []
     # previous_bins = []
     # set_max_bins = True
@@ -322,10 +307,11 @@ if __name__ == "__main__":
     #         print "Value Error"
     #
     # output_file.close()
-    # # #Uses results from greedy search method to output final ECR
+    #
     # print initial_features
     # print previous_bins
     #
+#########################################################################################################
     # exp_data, new_feats = final_feature_selection(original_data, initial_features, previous_bins)
     # ECR_mean, ECR_std = calculate_confidence_interval(exp_data, new_feats, samples=10000)
     # variance_output_file.write("%.5f,%.5f,%.5f,%.5f,%d\n" % (ECR_mean, ECR_std, ECR_mean-1.96*ECR_std, ECR_mean+1.96*ECR_std,10000))
@@ -338,17 +324,33 @@ if __name__ == "__main__":
     #                   [5] * 4 + [2] * 2,
     #                   [5] * 4 + [2],
     #                   [5] * 4]
-    potential_features = [['f7', 'f6', 'f1', 'f8', 'SolvedPSInLevel', 'cumul_TotalWETime', 'easyProblemCountSolved', 'cumul_OptionalCount']]
-    potential_bins = [[6, 4, 3, 3, 3, 5, 2, 3]]
-    variance_output_file = open('MDP_Variance_Output.csv',mode='a')
-    variance_output_file.write("Mean,Std,Lower95,Upper95,Samples\n")
-    for initial_features, previous_bins, index in zip(potential_features, potential_bins, range(len(potential_features))):
-        for samples_used in [10000]:
-            selected_features, expanded_data = final_feature_selection(original_data, initial_features, previous_bins)
-            # ECR_Final = induce_policy_MDP2(expanded_data, selected_features)
-            # print ECR_Final
-
-            ECR_mean, ECR_std = calculate_confidence_interval(expanded_data, selected_features, samples=samples_used)
-            print ECR_mean, ECR_std
-            variance_output_file.write("%.5f,%.5f,%.5f,%.5f,%d\n" % (ECR_mean, ECR_std, ECR_mean-1.96*ECR_std, ECR_mean+1.96*ECR_std,samples_used))
-    variance_output_file.close()
+    # potential_features = [['f7', 'f6', 'f1', 'f8', 'SolvedPSInLevel', 'cumul_TotalWETime', 'easyProblemCountSolved', 'cumul_OptionalCount']]
+    # potential_bins = [[6, 4, 3, 3, 3, 5, 2, 3]]
+    # variance_output_file = open('MDP_Variance_Output_Final.csv',mode='a')
+    # variance_output_file.write("FeatureName,NumberFeatures,Mean,Std,Lower95,Upper95,Samples\n")
+    #
+    #
+###################################################################################################################################
+    # Code for getting additive statistics
+    # random_bins = np.random.randint(2, 5, size=8)
+    # a = np.random.randint(6, original_data.shape[1], size=8)
+    # random_features = list(np.array(list(original_data.columns.values))[a])
+    #
+    # initial_features_sets = [['CurrPro_avgProbTimeWE', 'NextStepClickCountWE', 'cumul_TotalWETime', 'ruleScoreCD', 'ruleScoreADD', 'ruleScoreASSOC', 'difficultProblemCountWE', 'easyProblemCountWE'],
+    #                     ['f7', 'f6', 'f1', 'f8', 'SolvedPSInLevel', 'cumul_TotalWETime', 'easyProblemCountSolved', 'cumul_OptionalCount'],
+    #                     random_features]
+    # previous_bins_sets = [[5, 6, 5, 5, 2, 2, 2, 4],
+    #                     [6, 4, 3, 3, 3, 5, 2, 3],
+    #                     random_bins]
+    # name_scheme = ["OriginalGreedy", "ExpandedGreedy", "Random"]
+    # for initial_features, previous_bins, name in zip(initial_features_sets, previous_bins_sets, name_scheme):
+    #     for index in range(len(initial_features)):
+    #         for samples_used in [1000]:
+    #             rand_bool = name == "Random"
+    #
+    #             selected_features, expanded_data = final_feature_selection(original_data, initial_features[:index+1], previous_bins[:index+1])
+    #
+    #             ECR_mean, ECR_std = calculate_confidence_interval(expanded_data, selected_features, samples=samples_used)
+    #             print ECR_mean, ECR_std
+    #             variance_output_file.write("%s,%d,%.5f,%.5f,%.5f,%.5f,%d\n" % (name,index,ECR_mean, ECR_std, ECR_mean-1.96*ECR_std, ECR_mean+1.96*ECR_std,samples_used))
+    # variance_output_file.close()
